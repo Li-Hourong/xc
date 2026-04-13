@@ -1,5 +1,27 @@
 #include "lexer.h"
 
+#include <unordered_map>
+
+namespace {
+Token::Type ResolveIdentifierType(const std::string& text)
+{
+    static const std::unordered_map<std::string, Token::Type> keywords = {
+        {"int", Token::INT},
+        {"void", Token::VOID},
+        {"char", Token::CHAR},
+        {"if", Token::IF},
+        {"else", Token::ELSE},
+        {"while", Token::WHILE},
+        {"return", Token::RETURN},
+        {"read", Token::READ},
+        {"write", Token::WRITE}
+    };
+
+    const auto it = keywords.find(text);
+    return it == keywords.end() ? Token::ID : it->second;
+}
+}
+
 Token GetToken(char*& ptr, int line)
 {
     char ch = *ptr++;
@@ -39,9 +61,9 @@ Token GetToken(char*& ptr, int line)
                 } else if(*ptr >= '0' && *ptr <= '9') {
                     state = DEC; ptr++; tokenStr += ch;
                 } else if(*ptr == '\'') {
-                    state = CHAR; ptr++;
+                    state = CHARC; ptr++;
                 } else if(*ptr == '"') {
-                    state = STR; ptr++;
+                    state = STRC; ptr++;
                 } else if(strchr("+-*/%=&|!<>.", *ptr)) {
                     state = OP; ptr++; tokenStr += ch;
                 } else {
@@ -56,7 +78,7 @@ Token GetToken(char*& ptr, int line)
                     ptr++;
                 } else {
                     state = ACCEPT;
-                    return Token(Token::ID, tokenStr, line);
+                    return Token(ResolveIdentifierType(tokenStr), tokenStr, line);
                 }
                 break;
             }
@@ -151,23 +173,23 @@ Token GetToken(char*& ptr, int line)
                 break;
             }
 
-            case CHAR:
+            case CHARC:
             {
                 tokenStr += *ptr++;
                 if(*ptr == '\'') {
                     ptr++;
                     state = ACCEPT;
-                    return Token(Token::CHAR, tokenStr, line);
+                    return Token(Token::CHARC, tokenStr, line);
                 } else {
                     state = ERROR;
                 }
                 break;
             }
-            case STR:
+            case STRC:
             {
                 if (*ptr == '"') {            // 字符串结束
                     ptr++;
-                    return Token(Token::STR, tokenStr, line);
+                    return Token(Token::STRC, tokenStr, line);
                 } else if (*ptr == '\\') {    // 发现反斜杠
                     ptr++;
                     state = ESCAPE; // 跳转到转义处理状态
@@ -181,6 +203,48 @@ Token GetToken(char*& ptr, int line)
                 
             case OP:
             {
+                if(strchr("+-*/%=!><", *ptr)) {
+                    tokenStr += *ptr; // 添加当前字符
+                    if(*(ptr + 1) == '=') {
+                        tokenStr += '=';  // 添加等号
+                        ptr += 2;         // 跳过两个字符
+                        switch(*ptr) {
+                            case '+': return Token(Token::PLUS_AS, tokenStr, line);
+                            case '-': return Token(Token::MIN_AS, tokenStr, line);
+                            case '*': return Token(Token::AST_AS, tokenStr, line);
+                            case '/': return Token(Token::DIV_AS, tokenStr, line);
+                            case '%': return Token(Token::MOD_AS, tokenStr, line);
+                            case '=': return Token(Token::EQ, tokenStr, line);
+                            case '!': return Token(Token::NEQ, tokenStr, line);
+                            case '<': return Token(Token::LTE, tokenStr, line);
+                            case '>': return Token(Token::GTE, tokenStr, line);
+                        }
+                    } else {
+                        ptr++;            // 只跳过当前字符
+                        switch(ch) {
+                            case '+': return Token(Token::PLUS, tokenStr, line);
+                            case '-': return Token(Token::MIN, tokenStr, line);
+                            case '*': return Token(Token::AST, tokenStr, line);
+                            case '/': return Token(Token::DIV, tokenStr, line);
+                            case '%': return Token(Token::MOD, tokenStr, line);
+                            case '=': return Token(Token::ASSIGN, tokenStr, line);
+                            case '!': return Token(Token::NOT, tokenStr, line);
+                            case '<': return Token(Token::LT, tokenStr, line);
+                            case '>': return Token(Token::GT, tokenStr, line);
+                        }
+                    }
+                }
+                else if( *ptr == '&') {
+                    if(*(ptr + 1) == '&') {
+                        ptr += 2;
+                        return Token(Token::AND, "&&", line);
+                    }
+                    else return Token(Token::REF, "&", line);
+                }
+                else if( *ptr == '|' && *(ptr + 1) == '|') {
+                    ptr += 2;
+                    return Token(Token::OR, "||", line);
+                }
                 
             }
             
@@ -200,7 +264,7 @@ Token GetToken(char*& ptr, int line)
                     state = ERROR; // 不支持的转义序列
                 }
                 if(state != ERROR) ptr++;
-                state = STR; // 返回字符串状态继续处理
+                state = STRC; // 返回字符串状态继续处理
                 break;
             }
 
