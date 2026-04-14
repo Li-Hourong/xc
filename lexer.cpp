@@ -1,5 +1,6 @@
-#include "lexer.h"
+#include "lexer.hpp"
 
+#include <cstring>
 #include <unordered_map>
 
 namespace {
@@ -37,52 +38,52 @@ Token GetToken(char*& ptr, int line)
     }
     ptr--;
 
-    State state = START;
+    State state = State::START;
     std::string tokenStr;
     bool invaliddigit = false;
 
-    while(state != ACCEPT) {
+    while(state != State::ACCEPT) {
         ch = *ptr;
         switch(state) {
-            case START:
+            case State::START:
             {
                 if( *ptr >= 'a' && *ptr <= 'z' || *ptr >= 'A' && *ptr <= 'Z' || *ptr == '_') {
-                    state = ID; ptr++; tokenStr += ch;
+                    state = State::ID; ptr++; tokenStr += ch;
                 } else if(*ptr == '0' && *(ptr + 1) == 'b') {
-                    state = BIN; ptr += 2;
+                    state = State::BIN; ptr += 2;
                 } else if(*ptr == '0' && *(ptr + 1) == 'B') {
-                    state = BIN; ptr += 2;
+                    state = State::BIN; ptr += 2;
                 } else if(*ptr == '0' && *(ptr + 1) == 'x') {
-                    state = HEX; ptr += 2;
+                    state = State::HEX; ptr += 2;
                 } else if(*ptr == '0' && *(ptr + 1) == 'X') {
-                    state = HEX; ptr += 2;
+                    state = State::HEX; ptr += 2;
                 } else if(*ptr == '0' && *(ptr + 1) >= '0' && *(ptr + 1) <= '7') {
-                    state = OCT; ptr++;
+                    state = State::OCT; ptr++;
                 } else if(*ptr >= '0' && *ptr <= '9') {
-                    state = DEC; ptr++; tokenStr += ch;
+                    state = State::DEC; ptr++; tokenStr += ch;
                 } else if(*ptr == '\'') {
-                    state = CHARC; ptr++;
+                    state = State::CHARC; ptr++;
                 } else if(*ptr == '"') {
-                    state = STRC; ptr++;
+                    state = State::STRC; ptr++;
                 } else if(strchr("+-*/%=&|!<>.", *ptr)) {
-                    state = OP; ptr++; tokenStr += ch;
+                    state = State::OP;
                 } else {
-                    state = ERROR;
+                    state = State::ERROR;
                 }
                 break;
             }
-            case ID:
+            case State::ID:
             {
                 if( *ptr >= 'a' && *ptr <= 'z' || *ptr >= 'A' && *ptr <= 'Z' || *ptr == '_' || (*ptr >= '0' && *ptr <= '9')) {
                     tokenStr += *ptr;
                     ptr++;
                 } else {
-                    state = ACCEPT;
+                    state = State::ACCEPT;
                     return Token(ResolveIdentifierType(tokenStr), tokenStr, line);
                 }
                 break;
             }
-            case BIN:
+            case State::BIN:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
                    (*ptr >= 'a' && *ptr <= 'f') || 
@@ -97,7 +98,7 @@ Token GetToken(char*& ptr, int line)
                     ptr++;
                 } else {
                     // 遇到非数字非字母，结束识别
-                    state = ACCEPT;
+                    state = State::ACCEPT;
                     
                     // 返回结果：如果有非法字符，返回错误类型
                     if(invaliddigit) {
@@ -107,7 +108,7 @@ Token GetToken(char*& ptr, int line)
                 }
                 break;
             }
-            case OCT:
+            case State::OCT:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
                    (*ptr >= 'a' && *ptr <= 'f') || 
@@ -122,7 +123,7 @@ Token GetToken(char*& ptr, int line)
                     ptr++;
                 } else {
                     // 遇到非数字非字母，结束识别
-                    state = ACCEPT;
+                    state = State::ACCEPT;
                     
                     // 返回结果：如果有非法字符，返回错误类型
                     if(invaliddigit) {
@@ -132,7 +133,7 @@ Token GetToken(char*& ptr, int line)
                 }
                 break;
             }
-            case DEC:
+            case State::DEC:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
                    (*ptr >= 'a' && *ptr <= 'f') || 
@@ -147,7 +148,7 @@ Token GetToken(char*& ptr, int line)
                     ptr++;
                 } else {
                     // 遇到非数字非字母，结束识别
-                    state = ACCEPT;
+                    state = State::ACCEPT;
                     
                     // 返回结果：如果有非法字符，返回错误类型
                     if(invaliddigit) {
@@ -157,7 +158,7 @@ Token GetToken(char*& ptr, int line)
                 }
                 break;
             }
-            case HEX:
+            case State::HEX:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
                    (*ptr >= 'a' && *ptr <= 'f') || 
@@ -167,88 +168,97 @@ Token GetToken(char*& ptr, int line)
                     ptr++;
                 } else {
                     // 遇到非数字非字母，结束识别
-                    state = ACCEPT;
+                    state = State::ACCEPT;
                     return Token(Token::HEX, tokenStr, line);
                 }
                 break;
             }
 
-            case CHARC:
+            case State::CHARC:
             {
                 tokenStr += *ptr++;
                 if(*ptr == '\'') {
                     ptr++;
-                    state = ACCEPT;
+                    state = State::ACCEPT;
                     return Token(Token::CHARC, tokenStr, line);
                 } else {
-                    state = ERROR;
+                    state = State::ERROR;
                 }
                 break;
             }
-            case STRC:
+            case State::STRC:
             {
                 if (*ptr == '"') {            // 字符串结束
                     ptr++;
                     return Token(Token::STRC, tokenStr, line);
                 } else if (*ptr == '\\') {    // 发现反斜杠
                     ptr++;
-                    state = ESCAPE; // 跳转到转义处理状态
+                    state = State::ESCAPE; // 跳转到转义处理状态
                 } else if (*ptr == '\n' || *ptr == '\0') {
-                    state = ERROR;           // 字符串未闭合
+                    state = State::ERROR;           // 字符串未闭合
                 } else {
                     tokenStr += *ptr++;       // 普通字符
                 }
                 break;
             }
                 
-            case OP:
+            case State::OP:
             {
-                if(strchr("+-*/%=!><", *ptr)) {
-                    tokenStr += *ptr; // 添加当前字符
-                    if(*(ptr + 1) == '=') {
-                        tokenStr += '=';  // 添加等号
-                        ptr += 2;         // 跳过两个字符
-                        switch(*ptr) {
-                            case '+': return Token(Token::PLUS_AS, tokenStr, line);
-                            case '-': return Token(Token::MIN_AS, tokenStr, line);
-                            case '*': return Token(Token::AST_AS, tokenStr, line);
-                            case '/': return Token(Token::DIV_AS, tokenStr, line);
-                            case '%': return Token(Token::MOD_AS, tokenStr, line);
-                            case '=': return Token(Token::EQ, tokenStr, line);
-                            case '!': return Token(Token::NEQ, tokenStr, line);
-                            case '<': return Token(Token::LTE, tokenStr, line);
-                            case '>': return Token(Token::GTE, tokenStr, line);
-                        }
-                    } else {
-                        ptr++;            // 只跳过当前字符
-                        switch(ch) {
-                            case '+': return Token(Token::PLUS, tokenStr, line);
-                            case '-': return Token(Token::MIN, tokenStr, line);
-                            case '*': return Token(Token::AST, tokenStr, line);
-                            case '/': return Token(Token::DIV, tokenStr, line);
-                            case '%': return Token(Token::MOD, tokenStr, line);
-                            case '=': return Token(Token::ASSIGN, tokenStr, line);
-                            case '!': return Token(Token::NOT, tokenStr, line);
-                            case '<': return Token(Token::LT, tokenStr, line);
-                            case '>': return Token(Token::GT, tokenStr, line);
-                        }
-                    }
+                const char op = *ptr;
+                const char next = *(ptr + 1);
+
+                switch(op) {
+                    case '+':
+                        if(next == '=') { ptr += 2; return Token(Token::PLUS_AS, "+=", line); }
+                        ptr++;
+                        return Token(Token::PLUS, "+", line);
+                    case '-':
+                        if(next == '=') { ptr += 2; return Token(Token::MIN_AS, "-=", line); }
+                        ptr++;
+                        return Token(Token::MIN, "-", line);
+                    case '*':
+                        if(next == '=') { ptr += 2; return Token(Token::AST_AS, "*=", line); }
+                        ptr++;
+                        return Token(Token::AST, "*", line);
+                    case '/':
+                        if(next == '=') { ptr += 2; return Token(Token::DIV_AS, "/=", line); }
+                        ptr++;
+                        return Token(Token::DIV, "/", line);
+                    case '%':
+                        if(next == '=') { ptr += 2; return Token(Token::MOD_AS, "%=", line); }
+                        ptr++;
+                        return Token(Token::MOD, "%", line);
+                    case '=':
+                        if(next == '=') { ptr += 2; return Token(Token::EQ, "==", line); }
+                        ptr++;
+                        return Token(Token::ASSIGN, "=", line);
+                    case '!':
+                        if(next == '=') { ptr += 2; return Token(Token::NEQ, "!=", line); }
+                        ptr++;
+                        return Token(Token::NOT, "!", line);
+                    case '<':
+                        if(next == '=') { ptr += 2; return Token(Token::LTE, "<=", line); }
+                        ptr++;
+                        return Token(Token::LT, "<", line);
+                    case '>':
+                        if(next == '=') { ptr += 2; return Token(Token::GTE, ">=", line); }
+                        ptr++;
+                        return Token(Token::GT, ">", line);
+                    case '&':
+                        if(next == '&') { ptr += 2; return Token(Token::AND, "&&", line); }
+                        ptr++;
+                        return Token(Token::REF, "&", line);
+                    case '|':
+                        if(next == '|') { ptr += 2; return Token(Token::OR, "||", line); }
+                        ptr++;
+                        return Token(Token::ERROR, "|", line);
+                    default:
+                        ptr++;
+                        return Token(Token::ERROR, std::string(1, op), line);
                 }
-                else if( *ptr == '&') {
-                    if(*(ptr + 1) == '&') {
-                        ptr += 2;
-                        return Token(Token::AND, "&&", line);
-                    }
-                    else return Token(Token::REF, "&", line);
-                }
-                else if( *ptr == '|' && *(ptr + 1) == '|') {
-                    ptr += 2;
-                    return Token(Token::OR, "||", line);
-                }
-                
             }
             
-            case ESCAPE:
+            case State::ESCAPE:
             {
                 if (*ptr == 'n') {
                     tokenStr += '\n';
@@ -261,14 +271,14 @@ Token GetToken(char*& ptr, int line)
                 } else if (*ptr == '\'') {
                     tokenStr += '\'';
                 } else {
-                    state = ERROR; // 不支持的转义序列
+                    state = State::ERROR; // 不支持的转义序列
                 }
-                if(state != ERROR) ptr++;
-                state = STRC; // 返回字符串状态继续处理
+                if(state != State::ERROR) ptr++;
+                state = State::STRC; // 返回字符串状态继续处理
                 break;
             }
 
-            case ERROR:
+            case State::ERROR:
             {
                 while(*ptr && *ptr != '\n' && *ptr != ' ' && *ptr != '\t') {
                     ptr++;

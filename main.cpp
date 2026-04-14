@@ -1,9 +1,11 @@
 #include <iostream>
 #include <fstream>
 #include <string>
-#include "lexer.h"
+#include <sstream>
+#include "lexer.hpp"
+#include "parser.hpp"
 
-int main(char* argv[], int argc) {
+int main(int argc, char* argv[]) {
     if(argc < 2) {
         std::cout << "[Error] Usage: " << argv[0] << " <source_file>" << std::endl;
         return 1;
@@ -21,7 +23,7 @@ int main(char* argv[], int argc) {
 
     file.close();
 
-    const char* ptr = content.c_str(); 
+    char* ptr = content.data();
     int line = 1;
     while(*ptr) {
         if(*ptr == ' ' || *ptr == '\n' || *ptr == '\t') {

@@ -1,0 +1,66 @@
+// Input: 4 5
+// Output: 3
+
+int grid[4][5]={
+    {1,1,0,0,0},
+    {1,1,0,1,0},
+    {0,0,0,0,0},
+    {0,0,0,1,1}
+};
+
+int island[4][5]={
+    {0,0,0,0,0},
+    {0,0,0,0,0},
+    {0,0,0,0,0},
+    {0,0,0,0,0}
+};
+
+int main(){
+    int num = 0;
+    int i = 0;
+    
+    while(i<4)
+    {
+        int j = 0;
+        while(j<5)
+        {
+            if(island[i][j] == 0 && grid[i][j] == 1){
+                ++num;
+                search(num,i,j,island,grid);
+            }
+            ++j;
+        }
+        ++i;
+    }
+
+    write(num);
+    ;
+    return 0;
+}
+
+void search(int num, int i, int j,
+            int island[][5],
+            int grid[][5])
+{
+        if (grid[i][j] == 0) return;
+        if (island[i][j] != 0) return;
+
+        island[i][j] = num;
+
+        if (i + 1 < 4) 
+        {
+            search(num, i + 1, j, island, grid);
+        }
+        if (j + 1 < 5) 
+        {
+            search(num, i, j + 1, island, grid);
+        }
+        if (i - 1 >= 0) 
+        {
+            search(num, i - 1, j, island, grid);
+        }
+        if (j - 1 >= 0)
+        {
+            search(num, i, j - 1, island, grid);
+        }
+}

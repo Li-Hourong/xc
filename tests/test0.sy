@@ -1,0 +1,53 @@
+// Input: 3
+// Output: 101
+// Input: the digits of binary number, the 2 binary number is stored in array a and b
+// Output: the result of adding the 2 binary number 
+
+int a[3]= {0,1,0};
+int b[3]={0,1,1};
+int result[4]={0,0,0,0};
+
+int main(){
+    int i=read();
+    --i;
+    int carry = 0;
+    while(i>=0)
+    {
+        if(a[i]+b[i]==2 && carry==1)
+        {
+            result[i]=1; 
+            carry=1;
+        }
+        else if(a[i]+b[i]==2 && carry==0)
+        {
+            result[i]=0; 
+            carry=1;
+        }
+        else if(a[i]+b[i]==1 && carry==1)
+        {
+            result[i]=0; 
+            carry=1;
+        }
+        else if(a[i]+b[i]==0 && carry==1)
+        {
+            result[i]=1; 
+            carry=0;
+        }
+        else if(a[i]+b[i]==1 && carry==0)
+        {
+            result[i]=1; 
+            carry=0;
+        }
+        else if(a[i]+b[i]==0 && carry==0)
+        {
+            result[i]=0; 
+            carry=0;
+        }
+        --i;
+    }
+    result[3]=carry;
+    int out = (1000*result[3]+100*result[0]+10*result[1]+result[2]);
+    write(out);
+
+    return 0;
+}

@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug xc (gdb)",
+      "type": "cppdbg",
+      "request": "launch",
+      "program": "${workspaceFolder}/build/xc",
+      "args": ["${input:sourceFile}"],
+      "stopAtEntry": false,
+      "cwd": "${workspaceFolder}",
+      "environment": [],
+      "externalConsole": false,
+      "MIMode": "gdb",
+      "miDebuggerPath": "/usr/bin/gdb",
+      "setupCommands": [
+        {
+          "description": "Enable pretty printing for gdb",
+          "text": "-enable-pretty-printing",
+          "ignoreFailures": true
+        }
+      ],
+      "preLaunchTask": "CMake: Configure+Build (Debug)"
+    }
+  ],
+  "inputs": [
+    {
+      "id": "sourceFile",
+      "type": "promptString",
+      "description": "输入要词法分析的源文件路径（相对工作区）",
+      "default": "tests/test1.sy"
+    }
+  ]
+}
