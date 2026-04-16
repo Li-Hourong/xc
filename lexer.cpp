@@ -23,7 +23,7 @@ Token::Type ResolveIdentifierType(const std::string& text)
 }
 }
 
-Token GetToken(char*& ptr, int line)
+Token GetToken(const char*& ptr, int line)
 {
     char ch = *ptr++;
     switch(ch) {
@@ -86,8 +86,8 @@ Token GetToken(char*& ptr, int line)
             case State::BIN:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
-                   (*ptr >= 'a' && *ptr <= 'f') || 
-                   (*ptr >= 'A' && *ptr <= 'F')) {
+                   (*ptr >= 'a' && *ptr <= 'z') || 
+                   (*ptr >= 'A' && *ptr <= 'Z')) {
                     
                     // 检查是否为非法二进制数字或字母
                     if(!(*ptr == '0' || *ptr == '1')) {
@@ -111,8 +111,8 @@ Token GetToken(char*& ptr, int line)
             case State::OCT:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
-                   (*ptr >= 'a' && *ptr <= 'f') || 
-                   (*ptr >= 'A' && *ptr <= 'F')) {
+                   (*ptr >= 'a' && *ptr <= 'z') || 
+                   (*ptr >= 'A' && *ptr <= 'Z')) {
                     
                     // 检查是否为非法二进制数字或字母
                     if(!(*ptr >= '0' && *ptr <= '7')) {
@@ -136,8 +136,8 @@ Token GetToken(char*& ptr, int line)
             case State::DEC:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
-                   (*ptr >= 'a' && *ptr <= 'f') || 
-                   (*ptr >= 'A' && *ptr <= 'F')) {
+                   (*ptr >= 'a' && *ptr <= 'z') || 
+                   (*ptr >= 'A' && *ptr <= 'Z')) {
                     
                     // 检查是否为非法二进制数字或字母
                     if(!(*ptr >= '0' && *ptr <= '9')) {
@@ -161,8 +161,8 @@ Token GetToken(char*& ptr, int line)
             case State::HEX:
             {
                 if((*ptr >= '0' && *ptr <= '9') || 
-                   (*ptr >= 'a' && *ptr <= 'f') || 
-                   (*ptr >= 'A' && *ptr <= 'F')) {
+                   (*ptr >= 'a' && *ptr <= 'z') || 
+                   (*ptr >= 'A' && *ptr <= 'Z')) {
                     
                     tokenStr += *ptr;
                     ptr++;

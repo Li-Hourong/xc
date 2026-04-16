@@ -9,7 +9,7 @@ int result[4]={0,0,0,0};
 
 int main(){
     int i=read();
-    --i;
+    i-=1;
     int carry = 0;
     while(i>=0)
     {
@@ -43,7 +43,7 @@ int main(){
             result[i]=0; 
             carry=0;
         }
-        --i;
+        i-=1;
     }
     result[3]=carry;
     int out = (1000*result[3]+100*result[0]+10*result[1]+result[2]);

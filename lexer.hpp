@@ -1,3 +1,4 @@
+#pragma once
 #include <string>
 #include <iostream>
 
@@ -104,4 +105,4 @@ enum class State
     ERROR
 };
 
-Token GetToken(char*& ptr, int line);
+Token GetToken(const char*& ptr, int line);

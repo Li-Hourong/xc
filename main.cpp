@@ -23,7 +23,7 @@ int main(int argc, char* argv[]) {
 
     file.close();
 
-    char* ptr = content.data();
+    const char* ptr = content.data();
     int line = 1;
     while(*ptr) {
         if(*ptr == ' ' || *ptr == '\n' || *ptr == '\t') {
