@@ -2,6 +2,7 @@
 #include <fstream>
 #include <string>
 #include <sstream>
+#include <vector>
 #include "lexer.hpp"
 #include "parser.hpp"
 
@@ -25,6 +26,8 @@ int main(int argc, char* argv[]) {
 
     const char* ptr = content.data();
     int line = 1;
+    std::vector<Token> tokens;
+
     while(*ptr) {
         if(*ptr == ' ' || *ptr == '\n' || *ptr == '\t') {
             if(*ptr == '\n') line++;
@@ -45,6 +48,13 @@ int main(int argc, char* argv[]) {
             continue;
         }
         Token token = GetToken(ptr, line);
-        token.print();
+        //token.print();
+        tokens.push_back(token);
     }
+    
+    CompUnit* root = parse_comp_unit();
+    root->print();
+    delete root;
+    
+    return 0;
 }

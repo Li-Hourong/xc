@@ -16,3 +16,16 @@ void ASTNode::print(std::string prefix, std::string info_prefix) {
     }
   }
 }
+
+std::string Type::to_string() const {
+      switch (kind) {
+        case Typekind::INT: return "int";
+        case Typekind::VOID: return "void";
+        case Typekind::CHAR: return "char";
+        case Typekind::PTR:
+          return (base ? base->to_string() : std::string("<?>")) + "*";
+        case Typekind::ARR:
+          return (base ? base->to_string() : std::string("<?>")) + "[" + (arr_size < 0 ? "" : std::to_string(arr_size)) + "]";
+      }
+      return "<?>";
+    }
