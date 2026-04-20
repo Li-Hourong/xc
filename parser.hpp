@@ -1,5 +1,6 @@
 #pragma once
 #include "lexer.hpp"
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -31,8 +32,8 @@ enum class Typekind{
 class Type
 {
 public:
-    Typekind kind;
-    Type* base = nullptr; // for PTR and ARR
+    Typekind kind = Typekind::INT;
+    std::shared_ptr<Type> base = nullptr; // for PTR and ARR
     int arr_size = 0; // for ARR
     std::string to_string() const;
 };
@@ -48,33 +49,45 @@ public:
     
     ASTNode() : start_line(0), end_line(0) {}
     virtual ~ASTNode() = default;
+
+protected:
+    template <typename T>
+    static std::vector<ASTNode*> raw_children(const std::vector<std::unique_ptr<T>>& nodes) {
+        std::vector<ASTNode*> result;
+        result.reserve(nodes.size());
+        for (const auto& n : nodes) {
+            result.push_back(n.get());
+        }
+        return result;
+    }
 };
 
 class CompUnit : public ASTNode
 {
 public:
-    ~CompUnit() override;
+    ~CompUnit() override = default;
     CompUnit() = default;
 
-    std::vector<ASTNode*> units;  // FuncDef or VarDecl
-    CompUnit(ASTNode* unit) { add_unit(unit); }
-    void add_unit(ASTNode* unit) { units.push_back(unit); }
+    std::vector<std::unique_ptr<ASTNode>> units;  // FuncDef or VarDecl
+    explicit CompUnit(std::unique_ptr<ASTNode> unit) { add_unit(std::move(unit)); }
+    void add_unit(std::unique_ptr<ASTNode> unit) { units.push_back(std::move(unit)); }
     std::string to_string() override { return "CompUnit"; }
-    std::vector<ASTNode*> get_children() override { return units; }
+    std::vector<ASTNode*> get_children() override { return raw_children(units); }
 };
 
 class FuncCall : public ASTNode
 {
 public:
     std::string ident;
-    std::vector<ASTNode*> args;
-    FuncCall(const std::string& ident) : ident(ident) {};
-    FuncCall(const std::string& ident, const std::vector<ASTNode*>& args) : ident(ident), args(args) {}
+    std::vector<std::unique_ptr<ASTNode>> args;
+    explicit FuncCall(const std::string& ident) : ident(ident) {}
+    FuncCall(const std::string& ident, std::vector<std::unique_ptr<ASTNode>> args)
+        : ident(ident), args(std::move(args)) {}
     
     std::string to_string() override { 
         return "FuncCall [ " + ident + " arg_num: " + std::to_string(args.size()) + " ]"; 
     }
-    std::vector<ASTNode*> get_children() override { return args; }  
+    std::vector<ASTNode*> get_children() override { return raw_children(args); }
 };
 
 class VarDef : public ASTNode
@@ -82,16 +95,16 @@ class VarDef : public ASTNode
 public:
     std::string ident;
     Type type;
-    ASTNode* init_value; // can be nullptr if no initializer
+    std::unique_ptr<ASTNode> init_value = nullptr; // can be nullptr if no initializer
     VarDef(const std::string& ident, const Type& type) : ident(ident), type(type) {}
-    VarDef(const std::string& ident, const Type& type, ASTNode* init_value)
-        : ident(ident), type(type), init_value(init_value) {}
+    VarDef(const std::string& ident, const Type& type, std::unique_ptr<ASTNode> init_value)
+        : ident(ident), type(type), init_value(std::move(init_value)) {}
     
     std::string to_string() override { 
         return "VarDef [ " + ident + " initialized: " + std::string(init_value != nullptr ? "true" : "false") + " ]"; 
     }
     std::vector<ASTNode*> get_children() override { 
-        return init_value ? std::vector<ASTNode*>{init_value} : std::vector<ASTNode*>(); 
+        return init_value ? std::vector<ASTNode*>{init_value.get()} : std::vector<ASTNode*>();
     }
 };
 
@@ -99,37 +112,27 @@ class VarDecl : public ASTNode
 {
 public:
     Type base_type;
-    std::vector<VarDef*> defs;
+    std::vector<std::unique_ptr<VarDef>> defs;
     VarDecl(const Type& base_type) : base_type(base_type){}
-    ~VarDecl() override {};
+    ~VarDecl() override = default;
     std::string to_string() override { return "VarDecl [ " + base_type.to_string() + " ]"; }
-
+    void add_def(std::unique_ptr<VarDef> def) { defs.push_back(std::move(def)); }
+    std::vector<ASTNode*> get_children() override {
+        return raw_children(defs);
+    }
 };
 
 class Params : public ASTNode
 {
 public:
-    std::vector<ASTNode*> params;
-    Params(VarDecl* p) {add_param(p);}
-    ~Params() override {};
-    void add_param(VarDecl* p) {params.push_back(p);}
+    std::vector<std::unique_ptr<VarDecl>> params;
+    Params() = default;
+    explicit Params(std::unique_ptr<VarDecl> p) { add_param(std::move(p)); }
+    ~Params() override = default;
+    void add_param(std::unique_ptr<VarDecl> p) { params.push_back(std::move(p)); }
     std::string to_string() override { return "Params [ " + std::to_string(params.size()) + " ]"; }
     std::vector<ASTNode*> get_children() override {
-        return params;
-    }
-};
-
-class FuncDef : public ASTNode
-{
-public:
-    Type return_type;
-    std::string ident;
-    std::vector<ASTNode*> params;
-    FuncDef(Params* p) {params.push_back(p);}
-    ~FuncDef() override {};
-    std::string to_string() override { return "FuncDef [ " + ident + " return type: " + return_type.to_string() + " ]"; }
-    std::vector<ASTNode*> get_children() override {
-        return params;
+        return raw_children(params);
     }
 };
 
@@ -139,12 +142,12 @@ public:
     std::string ident;
     Type type;
     std::vector<int> shape;
-    ASTNode* init_list; // can be nullptr if no initializer
+    std::unique_ptr<ASTNode> init_list = nullptr; // can be nullptr if no initializer
 
     ArrayDef(const std::string& ident, const Type& type, const std::vector<int>& shape) 
         : ident(ident), type(type), shape(shape) {}
-    ArrayDef(const std::string& ident, const Type& type, const std::vector<int>& shape, ASTNode* init_list) 
-        : ident(ident), type(type), shape(shape), init_list(init_list) {}
+    ArrayDef(const std::string& ident, const Type& type, const std::vector<int>& shape, std::unique_ptr<ASTNode> init_list)
+        : ident(ident), type(type), shape(shape), init_list(std::move(init_list)) {}
     
     std::string to_string() override { 
         return "ArrayDef [ " + ident + " dim: " +
@@ -153,14 +156,14 @@ public:
     }
     
     std::vector<ASTNode*> get_children() override { 
-        return init_list ? std::vector<ASTNode*>{init_list} : std::vector<ASTNode*>(); 
+        return init_list ? std::vector<ASTNode*>{init_list.get()} : std::vector<ASTNode*>();
     }
 };
 
 class Expr : public ASTNode
 {
 public:
-    Op op;
+    Op op = ASSIGN;
     Expr() = default;
 };
 
@@ -202,95 +205,122 @@ class Array : public ASTNode
 {
 public:
     std::string ident;
-    std::vector<Expr*> indices;
-    Array(const std::string& ident, const std::vector<Expr*>& indices) : ident(ident), indices(indices) {}
+    std::vector<std::unique_ptr<Expr>> indices;
+    Array(const std::string& ident, std::vector<std::unique_ptr<Expr>> indices)
+        : ident(ident), indices(std::move(indices)) {}
     std::string to_string() override { 
         return "Array [ " + ident + " dim: " + std::to_string(indices.size()) + " ]"; 
     }
+    std::vector<ASTNode*> get_children() override { return raw_children(indices); }
 };
 
 class BinaryExpr : public Expr
 {
 public:
-    ASTNode* left;
-    ASTNode* right;
-    BinaryExpr(Op op, ASTNode* left, ASTNode* right) : left(left), right(right) { this->op = op; }
+    std::unique_ptr<ASTNode> left = nullptr;
+    std::unique_ptr<ASTNode> right = nullptr;
+    BinaryExpr(Op op, std::unique_ptr<ASTNode> left, std::unique_ptr<ASTNode> right)
+        : left(std::move(left)), right(std::move(right)) { this->op = op; }
     std::string to_string() override { 
         return "BinaryExpr [ op: " + std::string(Token::TypeToString(static_cast<Token::Type>(op))) + " ]"; 
     }
-    std::vector<ASTNode*> get_children() override { return {left, right}; }
+    std::vector<ASTNode*> get_children() override { return {left.get(), right.get()}; }
 };
 
 class UnaryExpr : public Expr
 {
 public:
-    ASTNode* operand;
-    UnaryExpr(Op op, ASTNode* operand) : operand(operand) { this->op = op; }
+    std::unique_ptr<ASTNode> operand = nullptr;
+    UnaryExpr(Op op, std::unique_ptr<ASTNode> operand)
+        : operand(std::move(operand)) { this->op = op; }
     std::string to_string() override { 
         return "UnaryExpr [ op: " + std::string(Token::TypeToString(static_cast<Token::Type>(op))) + " ]"; 
     }
-    std::vector<ASTNode*> get_children() override { return {operand}; }
+    std::vector<ASTNode*> get_children() override { return {operand.get()}; }
 
 };
 
 class InitList : public ASTNode
 {
 public:
-    std::vector<ASTNode*> init_values; // can be IntRval, CharRval, StrRval, or nested InitList
-    explicit InitList(ASTNode* value) { add_value(value); }
-    void add_value(ASTNode* value) { init_values.push_back(value); }
+    std::vector<std::unique_ptr<ASTNode>> init_values; // can be IntRval, CharRval, StrRval, or nested InitList
+    InitList() = default;
+    explicit InitList(std::unique_ptr<ASTNode> value) { add_value(std::move(value)); }
+    void add_value(std::unique_ptr<ASTNode> value) { init_values.push_back(std::move(value)); }
     std::string to_string() override { return "InitList [ size: " + std::to_string(init_values.size()) + " ]"; }
-    std::vector<ASTNode*> get_children() override { return init_values; }
+    std::vector<ASTNode*> get_children() override { return raw_children(init_values); }
 };
 
 class Block : public ASTNode
 {
 public:
-    std::vector<ASTNode*> stmts; // Stmt or VarDecl
+    std::vector<std::unique_ptr<ASTNode>> stmts; // Stmt or VarDecl
     Block() {}
-    Block(ASTNode* stmt) { add_stmt(stmt); }
-    ~Block() override;
-    void add_stmt(ASTNode* stmt) { stmts.push_back(stmt); }
+    explicit Block(std::unique_ptr<ASTNode> stmt) { add_stmt(std::move(stmt)); }
+    ~Block() override = default;
+    void add_stmt(std::unique_ptr<ASTNode> stmt) { stmts.push_back(std::move(stmt)); }
     std::string to_string() override { return "Block"; }
-    std::vector<ASTNode*> get_children() override { return stmts; }
+    std::vector<ASTNode*> get_children() override { return raw_children(stmts); }
 };
 
 class IfStmt : public ASTNode
 {
 public:
-    Expr* cond;
-    ASTNode* then_branch;
-    ASTNode* else_branch;
-    IfStmt(Expr* cond, ASTNode* then_stmt)
-        : cond(cond), then_branch(then_stmt), else_branch(nullptr) {}
-    IfStmt(Expr* cond, ASTNode* then_stmt, ASTNode* else_stmt)
-      :  cond(cond), then_branch(then_stmt), else_branch(else_stmt) {}
+    std::unique_ptr<Expr> cond = nullptr;
+    std::unique_ptr<ASTNode> then_branch = nullptr;
+    std::unique_ptr<ASTNode> else_branch = nullptr;
+    IfStmt(std::unique_ptr<Expr> cond, std::unique_ptr<ASTNode> then_stmt)
+        : cond(std::move(cond)), then_branch(std::move(then_stmt)), else_branch(nullptr) {}
+    IfStmt(std::unique_ptr<Expr> cond, std::unique_ptr<ASTNode> then_stmt, std::unique_ptr<ASTNode> else_stmt)
+      : cond(std::move(cond)), then_branch(std::move(then_stmt)), else_branch(std::move(else_stmt)) {}
 
     std::string to_string() override {
         return "IfStmt [ has_else_branch: " + std::string(else_branch ? "true" : "false") +
            " ]";
+    }
+    std::vector<ASTNode*> get_children() override {
+        if (else_branch) {
+            return {cond.get(), then_branch.get(), else_branch.get()};
+        }
+        return {cond.get(), then_branch.get()};
     }
 };
 
 class WhileStmt : public ASTNode
 {
 public:
-    ASTNode* cond;
-    ASTNode* body;
-    WhileStmt(ASTNode* cond, ASTNode* body) : cond(cond), body(body) {}
+    std::unique_ptr<ASTNode> cond = nullptr;
+    std::unique_ptr<ASTNode> body = nullptr;
+    WhileStmt(std::unique_ptr<ASTNode> cond, std::unique_ptr<ASTNode> body)
+        : cond(std::move(cond)), body(std::move(body)) {}
     std::string to_string() override { return "WhileStmt"; }
-    std::vector<ASTNode*> get_children() override { return {cond, body}; }
+    std::vector<ASTNode*> get_children() override { return {cond.get(), body.get()}; }
 };
 
 class ReturnStmt : public ASTNode
 {
 public:
-    ASTNode* ret_expr; // can be nullptr for void functions
-    ReturnStmt() : ret_expr(nullptr) {}
-    ReturnStmt(ASTNode* ret_expr) : ret_expr(ret_expr) {}
+    std::unique_ptr<ASTNode> ret_expr = nullptr; // can be nullptr for void functions
+    ReturnStmt() = default;
+    explicit ReturnStmt(std::unique_ptr<ASTNode> ret_expr) : ret_expr(std::move(ret_expr)) {}
     std::string to_string() override { return "ReturnStmt"; }
     std::vector<ASTNode*> get_children() override { 
-        return ret_expr ? std::vector<ASTNode*>{ret_expr} : std::vector<ASTNode*>(); 
+        return ret_expr ? std::vector<ASTNode*>{ret_expr.get()} : std::vector<ASTNode*>();
     }
 };
 
+class FuncDef : public ASTNode
+{
+public:
+    Type return_type;
+    std::string ident;
+    std::unique_ptr<Params> params = nullptr;
+    std::unique_ptr<Block> body = nullptr;
+    FuncDef(std::unique_ptr<Params> p, std::unique_ptr<Block> b)
+        : params(std::move(p)), body(std::move(b)) {}
+    ~FuncDef() override = default;
+    std::string to_string() override { return "FuncDef [ " + ident + " return type: " + return_type.to_string() + " ]"; }
+    std::vector<ASTNode*> get_children() override {
+        return std::vector<ASTNode*>{params.get(), body.get()};
+    }
+};
