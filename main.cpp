@@ -52,9 +52,8 @@ int main(int argc, char* argv[]) {
         tokens.push_back(token);
     }
     
-    CompUnit* root = parse_comp_unit();
+    std::unique_ptr<CompUnit> root = parse(tokens);
     root->print();
-    delete root;
     
     return 0;
 }

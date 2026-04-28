@@ -1,4 +1,5 @@
 #include "parser.hpp"
+#include <memory>
 
 void ASTNode::print(std::string prefix, std::string info_prefix) {
   std::cout << info_prefix << to_string() << " ( line " << start_line 
@@ -28,4 +29,9 @@ std::string Type::to_string() const {
           return (base ? base->to_string() : std::string("<?>")) + "[" + (arr_size < 0 ? "" : std::to_string(arr_size)) + "]";
       }
       return "<?>";
-    }
+}
+
+std::unique_ptr<CompUnit> parse(std::vector<Token>& tokens)
+{
+
+}

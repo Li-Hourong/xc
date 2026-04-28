@@ -324,3 +324,5 @@ public:
         return std::vector<ASTNode*>{params.get(), body.get()};
     }
 };
+
+std::unique_ptr<CompUnit> parse(std::vector<Token>);
