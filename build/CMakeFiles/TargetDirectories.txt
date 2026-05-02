@@ -1,3 +1,0 @@
-/home/Lighter/compiler/xc/build/CMakeFiles/xc.dir
-/home/Lighter/compiler/xc/build/CMakeFiles/edit_cache.dir
-/home/Lighter/compiler/xc/build/CMakeFiles/rebuild_cache.dir

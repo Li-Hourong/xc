@@ -52,7 +52,8 @@ int main(int argc, char* argv[]) {
         tokens.push_back(token);
     }
     
-    std::unique_ptr<CompUnit> root = parse(tokens);
+    Parser parser(tokens);
+    std::unique_ptr<CompUnit> root = parser.parse_compunit();
     root->print();
     
     return 0;
