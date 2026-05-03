@@ -54,18 +54,28 @@ bool Parser::expect(Token::Type t, std::string msg){
     return false;
 }
 
+int Parser::cur_line() { return current().line; }
+int Parser::prev_line() { return pos > 0 ? tokens[pos - 1].line : 0; }
+
 std::unique_ptr<CompUnit> Parser::parse_compunit(){
     std::unique_ptr<CompUnit> compunit = std::make_unique<CompUnit>();
+    compunit->start_line = cur_line();
     while(!is_end()){
         if (current().type == Token::INT || current().type == Token::CHAR || current().type == Token::VOID){
-            std::unique_ptr<Type> t = parse_type();
-            if (current().type == Token::ID) {
-                std::string name = current().name;
+            int start_pos = pos;
+            pos++; // skip base type
+            while(current().type == Token::AST){
+                // don't support function pointer/array pointer for now, so just skip all '*' after type
                 pos++;
-                if (current().type == Token::LPAREN) { //FuncDef
-                    compunit->add_unit(std::move(parse_funcdef(*t, name)));
+            }
+            if (current().type == Token::ID) {
+                pos++;
+                if (current().type == Token::LPAREN) {
+                    pos = start_pos; // reset to re-parse type and ident in parse_funcdef
+                    compunit->add_unit(std::move(parse_funcdef()));
                 } else {
-                    compunit->add_unit(std::move(parse_vardecl(*t, name)));
+                    pos = start_pos; // reset to re-parse type and ident in parse_vardecl
+                    compunit->add_unit(std::move(parse_vardecl()));
                 }
             } else {
                 std::cerr << "Parse error: expect identifier after type" << std::endl;
@@ -77,22 +87,46 @@ std::unique_ptr<CompUnit> Parser::parse_compunit(){
             return nullptr;
         }
     }
+    compunit->end_line = prev_line();
     return compunit;
 }
 
-std::unique_ptr<FuncDef> Parser::parse_funcdef(Type t, std::string ident){
-    if (!expect(Token::LPAREN, "function parameter list")) return nullptr;
+std::unique_ptr<FuncDef> Parser::parse_funcdef(){
+    int start = cur_line();
+    // parse return type (base type + pointer qualifiers)
+    std::unique_ptr<Type> ret_type = parse_type();
+    while (!is_end() && current().type == Token::AST) {
+        auto ptr = std::make_unique<Type>();
+        ptr->kind = Typekind::PTR;
+        ptr->base = std::move(ret_type);
+        ret_type = std::move(ptr);
+        pos++;
+    }
+    // parse function name
+    if (current().type != Token::ID) {
+        std::cerr << "Parse error: expected function name at line "
+                  << current().line << std::endl;
+        return nullptr;
+    }
+    std::string name = current().name;
+    pos++;
+    // parse ( params ) { body }
+    expect(Token::LPAREN, "function parameter list");
     std::unique_ptr<Params> params = parse_params();
     expect(Token::RPAREN, "closing ) for parameters");
     std::unique_ptr<Block> body = parse_block();
-    std::unique_ptr<FuncDef> f = std::make_unique<FuncDef>(std::move(params), std::move(body));
-    f->return_type = t;
-    f->ident = ident;
+
+    auto f = std::make_unique<FuncDef>(std::move(params), std::move(body));
+    f->return_type = *ret_type;
+    f->ident = name;
+    f->start_line = start;
+    f->end_line = prev_line();
     return f;
 }
 
 std::unique_ptr<Block> Parser::parse_block(){
-    if (!expect(Token::LBRACE, "block start '{'")) 
+    int start = cur_line();
+    if (!expect(Token::LBRACE, "block start '{'"))
         return nullptr;
     std::unique_ptr<Block> block = std::make_unique<Block>();
     while(!is_end() && current().type != Token::RBRACE){
@@ -101,6 +135,8 @@ std::unique_ptr<Block> Parser::parse_block(){
         else break;
     }
     expect(Token::RBRACE, "block end '}'");
+    block->start_line = start;
+    block->end_line = prev_line();
     return block;
 }
 
@@ -135,20 +171,72 @@ std::unique_ptr<Params> Parser::parse_params(){
 
 }
 
-std::unique_ptr<VarDecl> Parser::parse_vardecl(Type t, std::string first_name){
-    std::unique_ptr<VarDecl> decl = std::make_unique<VarDecl>(t);
-    decl->add_def(std::make_unique<VarDef>(first_name, t));
-    while(current().type == Token::COMMA){
-        pos++;
-        if(current().type == Token::ID){
-            std::string next_name = current().name;
+std::unique_ptr<VarDecl> Parser::parse_vardecl(){
+    int start = cur_line();
+    // parse base type (e.g. int/char/void)
+    std::unique_ptr<Type> base_type = parse_type();
+    auto vardecl = std::make_unique<VarDecl>(*base_type);
+
+    while (true) {
+        // each declarator has its own pointer qualifiers
+        Type var_type_copy = *base_type;
+        std::unique_ptr<Type> var_type = std::make_unique<Type>(var_type_copy);
+        //TODO: support function pointer/array pointer if needed
+        while (!is_end() && current().type == Token::AST) {
+            auto ptr = std::make_unique<Type>();
+            ptr->kind = Typekind::PTR;
+            ptr->base = std::move(var_type);
+            var_type = std::move(ptr);
             pos++;
-            decl->add_def(std::make_unique<VarDef>(next_name, t));
+        }
+
+        // parse identifier
+        if (current().type != Token::ID) {
+            std::cerr << "Parse error: expected identifier at line "
+                      << current().line << std::endl;
+            return nullptr;
+        }
+        std::string name = current().name;
+        pos++;
+
+        // parse array dimensions: [expr][expr]...
+        while (!is_end() && current().type == Token::LBRACK) {
+            pos++; // skip [
+            // TODO: parse constant expression for array size
+            int size = 0;
+            if (!is_end() && current().type == Token::DEC) {
+                size = std::stoi(current().name);
+                pos++;
+            }
+            auto arr = std::make_unique<Type>();
+            arr->kind = Typekind::ARR;
+            arr->base = std::move(var_type);
+            arr->arr_size = size;
+            var_type = std::move(arr);
+            expect(Token::RBRACK, "closing ] for array");
+        }
+
+        // parse optional initializer
+        std::unique_ptr<ASTNode> init = nullptr;
+        if (!is_end() && current().type == Token::ASSIGN) {
+            pos++; // skip =
+            if (!is_end() && current().type == Token::LBRACE) {
+                init = parse_initlist();
+            } else {
+                init = parse_expr();
+            }
+        }
+
+        vardecl->add_def(std::make_unique<VarDef>(name, *var_type, std::move(init)));
+
+        if (!is_end() && current().type == Token::COMMA) {
+            pos++; // skip , → next declarator
         } else {
-            std::cerr << "Parse error: expected identifier after ',' in variable declaration" << std::endl;
             break;
         }
     }
     expect(Token::SEMICOLON, "end of variable declaration");
-    return decl;
+    vardecl->start_line = start;
+    vardecl->end_line = prev_line();
+    return vardecl;
 }

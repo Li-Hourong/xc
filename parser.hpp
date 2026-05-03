@@ -333,16 +333,18 @@ public:
 
     Parser() = default;
     Parser(std::vector<Token> t) : pos(0), tokens(t) {};
+    int cur_line();
+    int prev_line();
     Token current();
     bool is_end();
     bool expect(Token::Type, std::string);
     std::unique_ptr<CompUnit> parse_compunit();
     std::unique_ptr<Type> parse_type();
-    std::unique_ptr<FuncDef> parse_funcdef(Type, std::string);
+    std::unique_ptr<FuncDef> parse_funcdef();
     std::unique_ptr<ASTNode> parse_expr();
     std::unique_ptr<ASTNode> parse_stmt();
     std::unique_ptr<Params> parse_params();
-    std::unique_ptr<VarDecl> parse_vardecl(Type, std::string);
+    std::unique_ptr<VarDecl> parse_vardecl();
     std::unique_ptr<Block> parse_block();
     std::unique_ptr<ASTNode> parse_initlist();
     
